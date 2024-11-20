@@ -1,0 +1,89 @@
+org: yakubu
+service: devops-deploy
+
+stages:
+  default:
+    params:
+      todoTable: "todo-table-${sls:stage}"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  memorySize: 512
+  timeout: 10
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "*"
+  environment:
+    TODO_TABLE: ${param:todoTable}
+
+  httpApi:
+    cors: true
+
+functions:
+  createTodo:
+    handler: src/todo/todo.createTodo
+    events:
+      - httpApi:
+          path: /todos
+          method: post
+  updateTodo:
+    handler: src/todo/todo.updateTodo
+    events:
+      - httpApi:
+          path: /todos/{todoId}
+          method: patch
+  getTodo:
+    handler: src/todo/todo.getTodo
+    events:
+      - httpApi:
+          path: /todos/{todoId}
+          method: get
+  getAllTodo:
+    handler: src/todo/todo.getAllTodo
+    events:
+      - httpApi:
+          path: /todos
+          method: get
+  deleteTodo:
+    handler: src/todo/todo.deleteTodo
+    events:
+      - httpApi:
+          path: /todos/{todoId}
+          method: delete
+
+resources:
+  Resources:
+    TodoTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: todoId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: todoId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${param:todoTable}
+
+custom:
+  serverless-dynamodb:
+    stages:
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+
+plugins:
+  - serverless-dynamodb
+  - serverless-offline
